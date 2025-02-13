@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebXR Shooter Game</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cesium.com/downloads/cesiumjs/releases/latest/Build/Cesium/Cesium.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@webxr-input-profiles/motion-controllers@latest"></script>
+    <script src="https://immersive-web.github.io/webxr-samples/js/webxr-polyfill.js"></script>
+    <link href="https://cesium.com/downloads/cesiumjs/releases/latest/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+</head>
+<body>
+    <div id="cesiumContainer" style="width: 100vw; height: 100vh;"></div>
+    <script>
+        let viewer = new Cesium.Viewer('cesiumContainer', {
+            terrainProvider: Cesium.createWorldTerrain(),
+            sceneModePicker: false,
+            baseLayerPicker: false
+        });
+
+        let scene = viewer.scene;
+        let camera = viewer.camera;
+
+        let buildings = viewer.scene.primitives.add(new Cesium.Cesium3DTileset({
+            url: Cesium.IonResource.fromAssetId(96188)
+        }));
+
+        if (navigator.xr) {
+            navigator.xr.requestSession('immersive-vr').then(session => {
+                session.addEventListener('end', () => console.log("Exited VR"));
+            }).catch(err => console.log("WebXR not available", err));
+        }
+
+        class Player {
+            constructor() {
+                this.primaryWeapon = "HK416";
+                this.sidearm = "P226 with RMR sight";
+                this.holsters = {
+                    rightHip: this.sidearm
+                };
+                this.magazineSlots = ["Mag 1", "Mag 2", "Mag 3", "Mag 4"];
+            }
+
+            switchToSidearm() {
+                console.log("Switched to sidearm: P226 with RMR sight");
+            }
+        }
+
+        class Enemy {
+            constructor(position) {
+                this.position = Cesium.Cartesian3.fromDegrees(...position);
+                this.health = 100;
+                this.state = "patrol";
+                this.coverPositions = [
+                    [-74.005, 40.713, 10],
+                    [-74.006, 40.712, 10],
+                    [-74.007, 40.711, 10]
+                ];
+                this.entity = viewer.entities.add({
+                    position: this.position,
+                    model: { uri: 'models/enemy.gltf', scale: 1 }
+                });
+                this.primaryWeapon = "AK-47";
+                this.sidearm = "Pistol";
+            }
+
+            update(playerPosition) {
+                let distance = Cesium.Cartesian3.distance(this.position, playerPosition);
+                if (distance < 50 && this.state !== "retreat") {
+                    this.state = "engage";
+                    this.takeCover();
+                    this.shootAtPlayer(playerPosition);
+                } else if (this.health < 30) {
+                    this.state = "retreat";
+                    this.findNewCover();
+                }
+            }
+
+            takeCover() {
+                let bestCover = this.coverPositions[Math.floor(Math.random() * this.coverPositions.length)];
+                this.moveTo(bestCover);
+            }
+
+            shootAtPlayer(playerPosition) {
+                console.log(`${this.primaryWeapon} firing at player!`);
+                if (Math.random() < 0.3) {
+                    console.log("Enemy reloading!");
+                }
+            }
+
+            switchToSidearm() {
+                console.log(`Switching to ${this.sidearm}`);
+            }
+
+            findNewCover() {
+                console.log("Enemy retreating to new cover!");
+                this.takeCover();
+            }
+
+            moveTo(position) {
+                this.entity.position = Cesium.Cartesian3.fromDegrees(...position);
+            }
+        }
+
+        let player = new Player();
+        let enemies = [
+            new Enemy([-74.005, 40.7135, 10]),
+            new Enemy([-74.004, 40.7128, 10])
+        ];
+
+        function updateEnemies() {
+            let playerPosition = Cesium.Cartesian3.fromDegrees(-74.006, 40.7128, 10);
+            enemies.forEach(enemy => enemy.update(playerPosition));
+        }
+
+        setInterval(updateEnemies, 1000);
+    </script>
+</body>
+</html>
